@@ -1,0 +1,23 @@
+artifact_path: file:C:/Users/eyagh/mlops/tp1/mlruns/1/models/m-325614e43911476ea7135427db952256/artifacts
+flavors:
+  python_function:
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.sklearn
+    model_path: model.pkl
+    predict_fn: predict
+    python_version: 3.13.14
+  sklearn:
+    code: null
+    pickled_model: model.pkl
+    serialization_format: cloudpickle
+    sklearn_version: 1.9.1
+    skops_trusted_types: null
+mlflow_version: 3.17.1
+model_id: m-325614e43911476ea7135427db952256
+model_size_bytes: 148335
+model_uuid: m-325614e43911476ea7135427db952256
+prompts: null
+run_id: d495d9259e614513ae04199de185a0df
+utc_time_created: '2026-10-21 01:15:57.410698'
