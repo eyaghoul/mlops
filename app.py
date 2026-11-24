@@ -1,29 +1,37 @@
 
+# ===== 1. Importer les bibliothèques =====
+import os
 from typing import Literal
 
 import mlflow
 import mlflow.sklearn
 import pandas as pd
-from fastapi import FastAPI, HTTPException
+
+from fastapi import FastAPI
 from pydantic import BaseModel
 
-# 1. Créer l'application
+# ===== 2. Créer l'application =====
 app = FastAPI(title="API Churn")
 
-# 2. Configurer MLflow et charger le modèle champion
-mlflow.set_tracking_uri("sqlite:///mlflow.db")
+# ===== 3. Lire la configuration =====
+TRACKING_URI = os.getenv(
+    "MLFLOW_TRACKING_URI",
+    "sqlite:///mlflow.db"
+)
 
-try:
-    model = mlflow.sklearn.load_model(
-        "models:/churn-model@champion"
-    )
-except Exception as e:
-    raise RuntimeError(
-        f"Impossible de charger le modèle MLflow : {e}"
-    ) from e
+MODEL_URI = os.getenv(
+    "MODEL_URI",
+    "models:/churn-model@champion"
+)
 
+# ===== 4. Charger le modèle au démarrage =====
+mlflow.set_tracking_uri(TRACKING_URI)
 
-# 3. Définir les données attendues
+model = mlflow.sklearn.load_model(MODEL_URI)
+
+print(f"Modèle chargé depuis : {MODEL_URI}")
+
+# ===== 5. Décrire les données attendues =====
 class Client(BaseModel):
     age: int
     salaire: float
@@ -31,55 +39,33 @@ class Client(BaseModel):
     anciennete: float
     consommation: float
 
-
-# 4. Vérifier que l'API fonctionne
+# ===== 6. Route /health =====
 @app.get("/health")
 def health():
     return {"status": "ok"}
 
-
-# 5. Prédire le churn
+# ===== 7. Route /predict =====
 @app.post("/predict")
 def predict(client: Client):
-    try:
-        # Convertir les données en DataFrame
-        ligne = pd.DataFrame([client.model_dump()])
 
-        # Encoder la variable catégorielle
-        ligne = pd.get_dummies(
-            ligne,
-            columns=["abonnement"],
-            dtype=int
-        )
+    # a) Transformer le client en DataFrame
+    ligne = pd.DataFrame([client.model_dump()])
 
-        # Récupérer les colonnes attendues par le modèle
-        colonnes = getattr(model, "feature_names_in_", None)
+    # b) Transformer la variable catégorielle en colonnes 0/1
+    ligne = pd.get_dummies(ligne)
 
-        if colonnes is None:
-            raise ValueError(
-                "Le modèle ne contient pas feature_names_in_."
-            )
+    # c) Garder les colonnes attendues par le modèle
+    ligne = ligne.reindex(
+        columns=model.feature_names_in_,
+        fill_value=0
+    )
 
-        # Aligner les colonnes et leur ordre
-        ligne = ligne.reindex(
-            columns=colonnes,
-            fill_value=0
-        )
+    # d) Effectuer la prédiction
+    resultat = int(model.predict(ligne)[0])
 
-        # Effectuer la prédiction
-        resultat = int(model.predict(ligne)[0])
-
-        return {
-            "churn": resultat,
-            "message": (
-                "Le client va partir"
-                if resultat == 1
-                else "Le client reste"
-            )
-        }
-
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Erreur lors de la prédiction : {str(e)}"
-        ) from e
+    # e) Retourner le résultat
+    return {
+        "churn": resultat,
+        "message": "Le client va partir" if resultat == 1
+                   else "Le client reste"
+    }
